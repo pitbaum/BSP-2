@@ -37,29 +37,24 @@ class GameGrid {
     }
 
     //receives and executes the users next move.
-    void nextMove(char currentPlayer, int col, int row) {
-      //string request = "Enter the coloumn and row to put your mark on: ";
-      //int col, row;
-      //as long as the values are out of bounds, reask input.
-      bool isValid = false;
-      int counter = 0;
-
-      while(!isValid || counter == 3) {
-        counter ++;
-        //input the column and row.
-        //cout << request;
-        //cin >> col >> row;
-        if(col > 0 && col <= 3 && row > 0 && row <= 3) {
-          if(status[row-1][col-1] == ' ')
-            isValid = true;
-          else
-            cout << "This space isn't free." << endl;
+    bool nextMove(char currentPlayer, int col, int row) {
+      if(col > 0 && col <= 3 && row > 0 && row <= 3) {
+        if(status[row-1][col-1] == ' ') {
+          //set the mark on the field to the one of the current player.
+          status[row-1][col-1] = currentPlayer;
+          return true;
         }
-        else
-          cout << "The input needs to be within the bounds of the field." << endl;
+        else {
+          cout << "This space isn't free." << endl;
+          return false;
+        }
       }
-      //set the mark on the field to the one of the current player.
-        status[row-1][col-1] = currentPlayer;
+      else {
+        cout << "The input needs to be within the bounds of the field." << endl;
+        return false;
+      }
+      cout << "unexpected input check." << endl;
+      return false;
     }
 
     //checks if the game was already won by a user.
@@ -72,11 +67,11 @@ class GameGrid {
         cout << "vertical win \n";
         return true;
       }
-      if(diagonal(currentPlayer, false)){
+      if(diagonalDown(currentPlayer)){
         cout << "diagonal down win \n";
         return true;
       }
-      if(diagonal(currentPlayer, true)){
+      if(diagonalUp(currentPlayer)){
         cout << "diagonal up win \n";
         return true;
       }
@@ -99,9 +94,9 @@ class GameGrid {
     bool horizontal(char currentPlayer) {
       for(int i = 0; i < width; ++i)
       {
+        int alignedCount = 0;
         for(int j = 0; j < height; ++j)
         {
-          int alignedCount = 0;
           if(status[i][j] == currentPlayer)
             ++alignedCount;
           else
@@ -116,9 +111,9 @@ class GameGrid {
     bool vertical(char currentPlayer) {
       for(int i = 0; i < height; ++i)
       {
+        int alignedCount = 0;
         for(int j = 0; j < width; ++j)
         {
-          int alignedCount = 0;
           if(status[j][i] == currentPlayer)
             ++alignedCount;
           else
@@ -130,29 +125,56 @@ class GameGrid {
       return false;
     }
 
-    bool diagonal(char currentPlayer, bool isUp) {
+    bool diagonalDown(char currentPlayer) {
       for(int i = 0; i < width; ++i)
       {
         for(int j = 0; j < height; ++j)
         {
           if(status[i][j] == currentPlayer)
           {
-            int alignedCount = 1;
-            int x = i, y = j;
-            while(x < width && y < height)
-            {
-              ++x;
-              if(isUp) //if it is used for upwards diagonals
-                --y;
-              else  //if it is used for downwards diagonals
-                ++y;
-              if(status[x][y] == currentPlayer)
-                ++alignedCount;
+            int alignedCount = 0;
+            int x = 0, y = 0;
+            while((i+x) < width && (i+y) < height) {
+              if(status[i+x][j+y] == currentPlayer)
+               ++alignedCount;
               else
                 alignedCount = 0;
               if(alignedCount >= goal)
                 return true;
+              ++x;
+              ++y;
             }
+          }
+        }
+      }
+      return false;
+    }
+
+    bool diagonalUp(char currentPlayer) {
+      for(int i = 0; i < width; ++i)
+      {
+        for(int j = 0; j < height; ++j)
+        {
+          int alignedCount = 0;
+          if(status[i][j] == currentPlayer)
+          {
+            int x = 0, y = 0;
+            cout << "current coords" <<  j << i << endl;
+            while((i+x) < width && (j-y) >= 0) {
+              if(status[i+x][j-y] != currentPlayer) {
+               alignedCount = 0;
+              }
+              else {
+                ++alignedCount;
+              }
+              if(alignedCount >= goal) {
+                return true;
+              }
+              ++x;
+              ++y;
+              cout << "counted: " << alignedCount << " " << currentPlayer << endl;
+            }
+            alignedCount = 0;
           }
         }
       }
@@ -231,7 +253,11 @@ class RandomAgent: public Agent {
   public:
     //chooses a move randomly from the move list.
     void policy() {
-      chosenMove = possibleMoves[rand() % (possibleMoves.size() - 1)];
+      if(possibleMoves.size() > 1) {
+        chosenMove = possibleMoves[rand() % (possibleMoves.size() - 1)];
+      }
+      else
+        chosenMove = possibleMoves.front();
       cout<< chosenMove;
     }
 
@@ -311,11 +337,16 @@ class ReinforcementLearning: public Agent {
 
 };
 
-//random Agent initilizer.
-void rnPLayerInit(RandomAgent rnPlayer, GameGrid game1) {
-  rnPlayer.gameStateLoader(game1.status);
-  rnPlayer.moveLoader();
-  rnPlayer.policy();
+//random Agent executer and initializer.
+void rnPLayerInit(RandomAgent &rnPlayer, GameGrid &game1) {
+  bool validInput = false;
+  while(!validInput) {
+    rnPlayer.gameStateLoader(game1.status);
+    rnPlayer.moveLoader();
+    rnPlayer.policy();
+    auto [col, row] = rnPlayer.makeMove();
+    validInput = game1.nextMove(rnPlayer.getPlayerSign(), col, row);
+  }
 }
 
 //main function to run tic tac toe.
@@ -342,16 +373,16 @@ int main() {
     else
       currentPlayer = 'O';
     game1.display();
-    if(rnPlayer.getPlayerSign() == currentPlayer) {
-      rnPlayer.gameStateLoader(game1.status);
-      rnPlayer.moveLoader();
-      rnPlayer.policy();
-      auto [col, row] = rnPlayer.makeMove();
-       game1.nextMove(currentPlayer, col, row);
-    }
+    //executes random player as 1st player.
+    if(rnPlayer.getPlayerSign() == currentPlayer)
+        rnPLayerInit(rnPlayer, game1);
+    //executes second player as human.
     else {
-      auto [col, row] = human1.input();
-       game1.nextMove(currentPlayer, col, row);
+      bool validInput = false;
+      while(!validInput) {
+        auto [col, row] = human1.input();
+        validInput = game1.nextMove(currentPlayer, col, row);
+      }
     }
   }
   game1.display();
